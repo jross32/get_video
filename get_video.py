@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download a video from a URL, with optional resolution selection."""
+"""Download videos from one or more URLs, with optional resolution selection."""
 
 import subprocess
 import sys
@@ -21,13 +21,12 @@ def get_formats(url):
         text=True,
     )
     if result.returncode != 0:
-        print(f"Error fetching video info:\n{result.stderr.strip()}")
-        sys.exit(1)
+        print(f"  Error fetching video info:\n  {result.stderr.strip()}")
+        return None, None
 
     info = json.loads(result.stdout)
     formats = info.get("formats", [])
 
-    # Collect unique resolutions with video streams
     resolutions = {}
     for f in formats:
         height = f.get("height")
@@ -52,59 +51,78 @@ def download(url, format_id=None):
     return result.returncode == 0
 
 
+def prompt_urls():
+    print("Enter video URLs one per line.")
+    print("Press Enter on an empty line when done.\n")
+    urls = []
+    while True:
+        line = input(f"  URL {len(urls) + 1}: ").strip()
+        if not line:
+            if not urls:
+                print("No URLs entered.")
+                sys.exit(1)
+            break
+        urls.append(line)
+    return urls
+
+
+def handle_video(index, total, url):
+    print(f"\n[{index}/{total}] Fetching info for: {url}")
+    resolutions, title = get_formats(url)
+
+    if title is None:
+        print(f"  Skipping due to error.")
+        return False
+
+    print(f"  Title: {title}")
+
+    selected_format_id = None
+
+    if resolutions:
+        sorted_res = sorted(resolutions.keys(), key=lambda r: int(r[:-1]), reverse=True)
+        print("  Available resolutions: " + ", ".join(sorted_res))
+        choice = input("  Resolution (number or e.g. 1080p, or Enter for best): ").strip()
+
+        if choice:
+            if choice.isdigit():
+                idx = int(choice) - 1
+                if 0 <= idx < len(sorted_res):
+                    label = sorted_res[idx]
+                    selected_format_id = resolutions[label]["format_id"]
+                    print(f"  Downloading {label}...")
+                else:
+                    print("  Invalid choice, downloading best available.")
+            elif choice in resolutions:
+                selected_format_id = resolutions[choice]["format_id"]
+                print(f"  Downloading {choice}...")
+            else:
+                print(f"  Resolution '{choice}' not found, downloading best available.")
+        else:
+            print("  Downloading best available resolution...")
+    else:
+        print("  No resolution options found, downloading best available.")
+
+    return download(url, selected_format_id)
+
+
 def main():
     if not check_yt_dlp():
         print("yt-dlp is not installed. Install it with:")
         print("  pip install yt-dlp")
         sys.exit(1)
 
-    url = input("Video URL: ").strip()
-    if not url:
-        print("No URL provided.")
-        sys.exit(1)
+    urls = prompt_urls()
+    total = len(urls)
+    results = []
 
-    print("Fetching video info...")
-    resolutions, title = get_formats(url)
+    for i, url in enumerate(urls, 1):
+        success = handle_video(i, total, url)
+        results.append((url, success))
 
-    print(f"\nTitle: {title}")
-
-    if not resolutions:
-        print("No resolution options found, downloading best available.")
-        success = download(url)
-    else:
-        sorted_res = sorted(resolutions.keys(), key=lambda r: int(r[:-1]), reverse=True)
-        print("\nAvailable resolutions:")
-        for i, label in enumerate(sorted_res, 1):
-            print(f"  {i}. {label}")
-
-        choice = input("\nResolution (number or e.g. 1080p, or press Enter for best): ").strip()
-
-        selected_format_id = None
-        if choice:
-            # Accept number or label
-            if choice.isdigit():
-                idx = int(choice) - 1
-                if 0 <= idx < len(sorted_res):
-                    label = sorted_res[idx]
-                    selected_format_id = resolutions[label]["format_id"]
-                    print(f"Downloading {label}...")
-                else:
-                    print("Invalid choice, downloading best available.")
-            elif choice in resolutions:
-                selected_format_id = resolutions[choice]["format_id"]
-                print(f"Downloading {choice}...")
-            else:
-                print(f"Resolution '{choice}' not found, downloading best available.")
-        else:
-            print("Downloading best available resolution...")
-
-        success = download(url, selected_format_id)
-
-    if success:
-        print("\nDone.")
-    else:
-        print("\nDownload failed.")
-        sys.exit(1)
+    print("\n--- Summary ---")
+    for url, success in results:
+        status = "OK" if success else "FAILED"
+        print(f"  [{status}] {url}")
 
 
 if __name__ == "__main__":
