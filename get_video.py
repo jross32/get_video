@@ -61,7 +61,13 @@ def download(url, format_id=None):
         cmd += ["-f", f"{format_id}+bestaudio/bestaudio/{format_id}"]
     else:
         cmd += ["-f", "bestvideo+bestaudio/best"]
-    cmd += ["--merge-output-format", "mp4", "-o", os.path.join(folder, "%(title)s.%(ext)s"), url]
+    cmd += [
+        "--merge-output-format", "mp4",
+        "-o", os.path.join(folder, "%(title)s.%(ext)s"),
+        "--trim-filenames", "100",
+        "--windows-filenames",
+        url,
+    ]
 
     result = subprocess.run(cmd)
     return result.returncode == 0
