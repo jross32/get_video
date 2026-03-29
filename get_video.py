@@ -4,6 +4,8 @@
 import subprocess
 import sys
 import json
+import os
+from urllib.parse import urlparse
 
 
 def check_yt_dlp():
@@ -39,13 +41,27 @@ def get_formats(url):
     return resolutions, info.get("title", "video")
 
 
+def site_name(url):
+    host = urlparse(url).hostname or ""
+    # Strip www. and take the first part, e.g. www.youtube.com -> youtube
+    host = host.removeprefix("www.")
+    return host.split(".")[0] or "unknown"
+
+
+def output_dir(url):
+    folder = os.path.join("saved_videos", site_name(url))
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
 def download(url, format_id=None):
+    folder = output_dir(url)
     cmd = ["yt-dlp", "--no-playlist"]
     if format_id:
         cmd += ["-f", f"{format_id}+bestaudio/bestaudio/{format_id}"]
     else:
         cmd += ["-f", "bestvideo+bestaudio/best"]
-    cmd += ["--merge-output-format", "mp4", url]
+    cmd += ["--merge-output-format", "mp4", "-o", os.path.join(folder, "%(title)s.%(ext)s"), url]
 
     result = subprocess.run(cmd)
     return result.returncode == 0
@@ -68,6 +84,7 @@ def prompt_urls():
 
 def handle_video(index, total, url):
     print(f"\n[{index}/{total}] Fetching info for: {url}")
+    print(f"  Saving to: saved_videos/{site_name(url)}/")
     resolutions, title = get_formats(url)
 
     if title is None:
