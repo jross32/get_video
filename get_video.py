@@ -16,12 +16,12 @@ def check_yt_dlp():
         return False
 
 
-def get_formats(url):
-    result = subprocess.run(
-        ["yt-dlp", "-J", "--no-playlist", url],
-        capture_output=True,
-        text=True,
-    )
+def get_formats(url, cookies_browser=None):
+    cmd = ["yt-dlp", "-J", "--no-playlist"]
+    if cookies_browser:
+        cmd += ["--cookies-from-browser", cookies_browser]
+    cmd.append(url)
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"  Error fetching video info:\n  {result.stderr.strip()}")
         return None, None
@@ -54,13 +54,15 @@ def output_dir(url):
     return folder
 
 
-def download(url, format_id=None):
+def download(url, format_id=None, cookies_browser=None):
     folder = output_dir(url)
     cmd = ["yt-dlp", "--no-playlist"]
     if format_id:
         cmd += ["-f", f"{format_id}+bestaudio/bestaudio/{format_id}"]
     else:
         cmd += ["-f", "bestvideo+bestaudio/best"]
+    if cookies_browser:
+        cmd += ["--cookies-from-browser", cookies_browser]
     cmd += [
         "--merge-output-format", "mp4",
         "-o", os.path.join(folder, "%(title)s.%(ext)s"),
@@ -88,10 +90,10 @@ def prompt_urls():
     return urls
 
 
-def handle_video(index, total, url):
+def handle_video(index, total, url, cookies_browser=None):
     print(f"\n[{index}/{total}] Fetching info for: {url}")
     print(f"  Saving to: saved_videos/{site_name(url)}/")
-    resolutions, title = get_formats(url)
+    resolutions, title = get_formats(url, cookies_browser)
 
     if title is None:
         print(f"  Skipping due to error.")
@@ -125,7 +127,7 @@ def handle_video(index, total, url):
     else:
         print("  No resolution options found, downloading best available.")
 
-    return download(url, selected_format_id)
+    return download(url, selected_format_id, cookies_browser)
 
 
 def main():
@@ -134,12 +136,18 @@ def main():
         print("  pip install yt-dlp")
         sys.exit(1)
 
+    print("\nUse browser cookies for age-restricted sites? (helps with login-required videos)")
+    print("Browsers: chrome, firefox, edge, safari — or press Enter to skip.")
+    cookies_browser = input("Browser: ").strip().lower() or None
+    if cookies_browser:
+        print(f"  Using cookies from {cookies_browser}.")
+
     urls = prompt_urls()
     total = len(urls)
     results = []
 
     for i, url in enumerate(urls, 1):
-        success = handle_video(i, total, url)
+        success = handle_video(i, total, url, cookies_browser)
         results.append((url, success))
 
     print("\n--- Summary ---")
