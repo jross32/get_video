@@ -136,11 +136,7 @@ def main():
         print("  pip install yt-dlp")
         sys.exit(1)
 
-    print("\nUse browser cookies for age-restricted sites? (helps with login-required videos)")
-    print("Browsers: chrome, firefox, edge, safari — or press Enter to skip.")
-    cookies_browser = input("Browser: ").strip().lower() or None
-    if cookies_browser:
-        print(f"  Using cookies from {cookies_browser}.")
+    cookies_browser = "chrome"
 
     urls = prompt_urls()
     total = len(urls)
